@@ -5,7 +5,7 @@ api-version: '1.21'
 load: STARTUP
 authors: [MinecraftMCP]
 description: A Minecraft Paper plugin with Model Context Protocol (MCP) integration
-website: https://github.com/yourusername/minecraftmcp
+website: https://github.com/aguara-guazu/MinecraftMCP
 
 commands:
   mcp:

@@ -18,9 +18,13 @@ MinecraftMCP provides secure and controlled access to your Minecraft server thro
 - Paper Server 1.21.4
 - Java 21 or later
 
+## Paper Plugin Support
+
+MinecraftMCP is built as a Paper plugin (using paper-plugin.yml) and implements Paper's command registration system. This plugin will not work with vanilla Bukkit or Spigot servers.
+
 ## Installation
 
-1. Download the latest release from the [Releases](https://github.com/yourusername/MinecraftMCP/releases) page.
+1. Download the latest release from the [Releases](https://github.com/aguara-guazu/MinecraftMCP/releases) page.
 2. Place the JAR file in your server's `plugins` directory.
 3. Restart your server or run `/reload confirm` to load the plugin.
 4. Configure the plugin by editing the `plugins/MinecraftMCP/config.yml` file.
@@ -138,7 +142,7 @@ To integrate MinecraftMCP with Claude Desktop, follow these steps:
 ## Building from Source
 
 ```bash
-git clone https://github.com/yourusername/MinecraftMCP.git
+git clone https://github.com/aguara-guazu/MinecraftMCP.git
 cd MinecraftMCP
 mvn clean package
 ```
@@ -161,4 +165,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Support
 
-If you encounter any issues or have questions, please [open an issue](https://github.com/yourusername/MinecraftMCP/issues) on GitHub.
+If you encounter any issues or have questions, please [open an issue](https://github.com/aguara-guazu/MinecraftMCP/issues) on GitHub.
