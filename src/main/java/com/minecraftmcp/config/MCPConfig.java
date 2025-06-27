@@ -33,22 +33,14 @@ public class MCPConfig {
     }
     
     /**
-     * Get the MCP server transport type (stdio, tcp, etc.)
+     * Get the MCP server transport type (http only)
      * 
      * @return the transport type
      */
     public String getMcpServerTransport() {
-        return plugin.getConfig().getString("mcp-server.transport", "stdio");
+        return plugin.getConfig().getString("mcp-server.transport", "http");
     }
     
-    /**
-     * Check if STDIO transport warnings should be suppressed
-     * 
-     * @return true if warnings should be suppressed, false otherwise
-     */
-    public boolean isSuppressStdioWarnings() {
-        return plugin.getConfig().getBoolean("mcp-server.suppress-stdio-warnings", true);
-    }
     
     /**
      * Get the HTTP port for the MCP server

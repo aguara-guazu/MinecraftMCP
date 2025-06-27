@@ -12,9 +12,7 @@ import com.minecraftmcp.mcp.tools.ServerLogsTool;
 import com.minecraftmcp.mcp.tools.ServerStatusTool;
 import com.minecraftmcp.mcp.tools.WorldInfoTool;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.Map;
@@ -78,12 +76,10 @@ public class MCPServer {
         if (running.compareAndSet(false, true)) {
             plugin.getLogger().info("Starting MCP server with " + plugin.getPluginConfig().getMcpServerTransport() + " transport");
             
-            if ("stdio".equalsIgnoreCase(plugin.getPluginConfig().getMcpServerTransport())) {
-                startStdioTransport();
-            } else if ("http".equalsIgnoreCase(plugin.getPluginConfig().getMcpServerTransport())) {
+            if ("http".equalsIgnoreCase(plugin.getPluginConfig().getMcpServerTransport())) {
                 startHttpTransport();
             } else {
-                plugin.getLogger().severe("Unsupported transport: " + plugin.getPluginConfig().getMcpServerTransport());
+                plugin.getLogger().severe("Unsupported transport: " + plugin.getPluginConfig().getMcpServerTransport() + ". Only HTTP transport is supported.");
                 running.set(false);
             }
         } else {
@@ -122,49 +118,6 @@ public class MCPServer {
         return running.get();
     }
     
-    /**
-     * Start the STDIO transport
-     */
-    private void startStdioTransport() {
-        executorService.submit(() -> {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-            PrintWriter writer = new PrintWriter(System.out, true);
-            
-            plugin.getLogger().info("MCP STDIO transport started");
-            
-            while (running.get()) {
-                try {
-                    String line = reader.readLine();
-                    
-                    if (line == null) {
-                        // End of stream, exit loop
-                        break;
-                    }
-                    
-                    // Process MCP request
-                    String response = processRequest(line);
-                    
-                    // Write response
-                    writer.println(response);
-                    writer.flush();
-                } catch (IOException e) {
-                    if ("Stream closed".equals(e.getMessage())) {
-                        // This is an expected condition when starting via Minecraft server console
-                        // The Minecraft server environment doesn't provide stdin access
-                        if (plugin.getPluginConfig().isDebugEnabled() && !plugin.getPluginConfig().isSuppressStdioWarnings()) {
-                            plugin.getLogger().info("STDIO stream closed. This is normal when running as a plugin.");
-                        }
-                    } else {
-                        // Log other IOException types as errors
-                        plugin.getLogger().severe("Error reading from stdin: " + e.getMessage());
-                    }
-                    break;
-                }
-            }
-            
-            plugin.getLogger().info("MCP STDIO transport stopped");
-        });
-    }
     
     /**
      * Send SSE event to a specific client
@@ -233,23 +186,31 @@ public class MCPServer {
             ObjectNode responseNode = JsonNodeFactory.instance.objectNode();
             
             switch (method) {
-                case "mcp.initialize":
-                    // Handle session initialization
+                case "initialize":
+                    // Handle MCP initialization
                     responseNode.set("result", handleInitialize(params));
                     break;
-                case "mcp.call_tool":
-                    // Handle tool call
-                    responseNode.set("result", handleCallTool(params));
+                case "tools/list":
+                    // Handle tools list request
+                    responseNode.set("result", handleToolsList(params));
                     break;
-                case "mcp.get_resource":
-                    // Handle resource request
-                    responseNode.set("result", handleGetResource(params));
+                case "tools/call":
+                    // Handle tool call
+                    responseNode.set("result", handleToolsCall(params));
+                    break;
+                case "resources/list":
+                    // Handle resources list request  
+                    responseNode.set("result", handleResourcesList(params));
+                    break;
+                case "resources/read":
+                    // Handle resource read request
+                    responseNode.set("result", handleResourcesRead(params));
                     break;
                 default:
                     // Unsupported method
                     ObjectNode error = JsonNodeFactory.instance.objectNode();
                     error.put("code", -32601);
-                    error.put("message", "Method not found");
+                    error.put("message", "Method not found: " + method);
                     responseNode.set("error", error);
             }
             
@@ -281,7 +242,7 @@ public class MCPServer {
     }
     
     /**
-     * Handle session initialization
+     * Handle MCP initialization
      * 
      * @param params the request parameters
      * @return the response
@@ -290,89 +251,88 @@ public class MCPServer {
         ObjectNode result = JsonNodeFactory.instance.objectNode();
         
         try {
-            // Extract client info
-            String clientId = params.path("client_id").asText();
-            String clientName = params.path("client_name").asText();
-            String clientVersion = params.path("client_version").asText();
+            // Extract client info according to MCP protocol
+            String protocolVersion = params.path("protocolVersion").asText("2024-11-05");
+            JsonNode clientInfo = params.path("clientInfo");
+            String clientName = clientInfo.path("name").asText("unknown");
+            String clientVersion = clientInfo.path("version").asText("unknown");
             
-            // Validate authentication if enabled
-            if (plugin.getPluginConfig().isApiKeyAuthEnabled()) {
-                String apiKey = params.path("auth").path("api_key").asText();
-                String source = "MCP-" + clientId;
-                
-                boolean isAuthenticated = plugin.getSecurityManager().validateApiKey(apiKey, source);
-                
-                if (!isAuthenticated) {
-                    result.put("status", "error");
-                    result.put("error", "Authentication failed");
-                    return result;
-                }
-                
-                // Create session
-                UUID sessionId = plugin.getSecurityManager().createSession(source);
-                
-                result.put("session_id", sessionId.toString());
-            }
+            // MCP initialization response structure
+            result.put("protocolVersion", "2024-11-05");
             
-            // Create server info
+            // Create server info according to MCP protocol
             ObjectNode serverInfo = JsonNodeFactory.instance.objectNode();
             serverInfo.put("name", "MinecraftMCP");
             serverInfo.put("version", plugin.getDescription().getVersion());
-            result.set("server_info", serverInfo);
+            result.set("serverInfo", serverInfo);
             
-            // Create capabilities
+            // Create capabilities according to MCP protocol
             ObjectNode capabilities = JsonNodeFactory.instance.objectNode();
-            capabilities.put("tools", plugin.getPluginConfig().areToolsEnabled());
-            capabilities.put("resources", plugin.getPluginConfig().areResourcesEnabled());
-            capabilities.put("prompts", plugin.getPluginConfig().arePromptsEnabled());
-            capabilities.put("logging", plugin.getPluginConfig().isLoggingEnabled());
+            if (plugin.getPluginConfig().areToolsEnabled()) {
+                capabilities.set("tools", JsonNodeFactory.instance.objectNode());
+            }
+            if (plugin.getPluginConfig().areResourcesEnabled()) {
+                capabilities.set("resources", JsonNodeFactory.instance.objectNode());
+            }
+            if (plugin.getPluginConfig().arePromptsEnabled()) {
+                capabilities.set("prompts", JsonNodeFactory.instance.objectNode());
+            }
+            if (plugin.getPluginConfig().isLoggingEnabled()) {
+                capabilities.set("logging", JsonNodeFactory.instance.objectNode());
+            }
             result.set("capabilities", capabilities);
             
-            result.put("status", "ok");
-            
             // Log connection
-            plugin.getLogger().info("MCP client connected: " + clientName + " " + clientVersion + " (" + clientId + ")");
+            plugin.getLogger().info("MCP client connected: " + clientName + " " + clientVersion);
             
             return result;
         } catch (Exception e) {
             plugin.getLogger().severe("Error handling initialization: " + e.getMessage());
-            result.put("status", "error");
-            result.put("error", "Internal server error: " + e.getMessage());
+            // Return error in MCP format
+            ObjectNode errorResult = JsonNodeFactory.instance.objectNode();
+            errorResult.put("code", -32603);
+            errorResult.put("message", "Internal error: " + e.getMessage());
+            result.set("error", errorResult);
             return result;
         }
     }
     
     /**
-     * Handle tool call
+     * Handle tools/list request
      * 
      * @param params the request parameters
      * @return the response
      */
-    private ObjectNode handleCallTool(JsonNode params) {
+    private ObjectNode handleToolsList(JsonNode params) {
         ObjectNode result = JsonNodeFactory.instance.objectNode();
         
         try {
-            // Extract parameters
-            String sessionId = params.path("session_id").asText();
+            // Create tools array according to MCP protocol
+            result.set("tools", objectMapper.valueToTree(getToolDefinitions()));
+            return result;
+        } catch (Exception e) {
+            plugin.getLogger().severe("Error listing tools: " + e.getMessage());
+            ObjectNode errorResult = JsonNodeFactory.instance.objectNode();
+            errorResult.put("code", -32603);
+            errorResult.put("message", "Internal error: " + e.getMessage());
+            result.set("error", errorResult);
+            return result;
+        }
+    }
+    
+    /**
+     * Handle tools/call request
+     * 
+     * @param params the request parameters
+     * @return the response
+     */
+    private ObjectNode handleToolsCall(JsonNode params) {
+        ObjectNode result = JsonNodeFactory.instance.objectNode();
+        
+        try {
+            // Extract parameters according to MCP protocol
             String toolName = params.path("name").asText();
             JsonNode arguments = params.path("arguments");
-            
-            // Validate session
-            if (plugin.getPluginConfig().isApiKeyAuthEnabled()) {
-                try {
-                    boolean isValid = plugin.getSecurityManager().validateSession(UUID.fromString(sessionId));
-                    
-                    if (!isValid) {
-                        result.put("status", "error");
-                        result.put("error", "Invalid or expired session");
-                        return result;
-                    }
-                } catch (IllegalArgumentException e) {
-                    result.put("status", "error");
-                    result.put("error", "Invalid session ID format");
-                    return result;
-                }
-            }
             
             // Get tool
             MCPTool tool = tools.get(toolName);
@@ -383,8 +343,14 @@ public class MCPServer {
                 return result;
             }
             
-            // Execute tool
-            result = tool.execute(arguments);
+            // Execute tool and format response according to MCP protocol
+            ObjectNode toolResult = tool.execute(arguments);
+            
+            // Format as MCP tool response
+            result.set("content", toolResult.get("content"));
+            if (toolResult.has("isError") && toolResult.get("isError").asBoolean()) {
+                result.put("isError", true);
+            }
             
             // Log tool execution
             if (plugin.getPluginConfig().isDebugEnabled()) {
@@ -394,58 +360,68 @@ public class MCPServer {
             return result;
         } catch (Exception e) {
             plugin.getLogger().severe("Error executing tool: " + e.getMessage());
-            result.put("status", "error");
-            result.put("error", "Tool execution failed: " + e.getMessage());
+            ObjectNode errorContent = JsonNodeFactory.instance.objectNode();
+            errorContent.put("type", "text");
+            errorContent.put("text", "Tool execution failed: " + e.getMessage());
+            result.set("content", objectMapper.valueToTree(new ObjectNode[]{errorContent}));
+            result.put("isError", true);
             return result;
         }
     }
     
     /**
-     * Handle resource request
+     * Handle resources/list request
      * 
      * @param params the request parameters
      * @return the response
      */
-    private ObjectNode handleGetResource(JsonNode params) {
+    private ObjectNode handleResourcesList(JsonNode params) {
         ObjectNode result = JsonNodeFactory.instance.objectNode();
         
         try {
-            // Extract parameters
-            String sessionId = params.path("session_id").asText();
+            // Create resources array according to MCP protocol
+            result.set("resources", objectMapper.valueToTree(getResourceDefinitions()));
+            return result;
+        } catch (Exception e) {
+            plugin.getLogger().severe("Error listing resources: " + e.getMessage());
+            ObjectNode errorResult = JsonNodeFactory.instance.objectNode();
+            errorResult.put("code", -32603);
+            errorResult.put("message", "Internal error: " + e.getMessage());
+            result.set("error", errorResult);
+            return result;
+        }
+    }
+    
+    /**
+     * Handle resources/read request
+     * 
+     * @param params the request parameters
+     * @return the response
+     */
+    private ObjectNode handleResourcesRead(JsonNode params) {
+        ObjectNode result = JsonNodeFactory.instance.objectNode();
+        
+        try {
+            // Extract parameters according to MCP protocol
             String uri = params.path("uri").asText();
-            JsonNode parameters = params.path("parameters");
             
-            // Validate session
-            if (plugin.getPluginConfig().isApiKeyAuthEnabled()) {
-                try {
-                    boolean isValid = plugin.getSecurityManager().validateSession(UUID.fromString(sessionId));
-                    
-                    if (!isValid) {
-                        result.put("status", "error");
-                        result.put("error", "Invalid or expired session");
-                        return result;
-                    }
-                } catch (IllegalArgumentException e) {
-                    result.put("status", "error");
-                    result.put("error", "Invalid session ID format");
-                    return result;
-                }
-            }
-            
-            // TODO: Extract resource name from URI
+            // Extract resource name from URI
             String resourceName = uri.replaceFirst("^resource://", "").split("/")[0];
             
             // Get resource
             MCPResource resource = resources.get(resourceName);
             
             if (resource == null) {
-                result.put("status", "error");
-                result.put("error", "Resource not found: " + resourceName);
+                ObjectNode errorContent = JsonNodeFactory.instance.objectNode();
+                errorContent.put("type", "text");
+                errorContent.put("text", "Resource not found: " + resourceName);
+                result.set("contents", objectMapper.valueToTree(new ObjectNode[]{errorContent}));
                 return result;
             }
             
-            // Get resource
-            result = resource.get(uri, parameters);
+            // Get resource and format according to MCP protocol
+            ObjectNode resourceResult = resource.get(uri, params);
+            result.set("contents", resourceResult.get("contents"));
             
             // Log resource request
             if (plugin.getPluginConfig().isDebugEnabled()) {
@@ -455,8 +431,10 @@ public class MCPServer {
             return result;
         } catch (Exception e) {
             plugin.getLogger().severe("Error fetching resource: " + e.getMessage());
-            result.put("status", "error");
-            result.put("error", "Resource fetch failed: " + e.getMessage());
+            ObjectNode errorContent = JsonNodeFactory.instance.objectNode();
+            errorContent.put("type", "text");
+            errorContent.put("text", "Resource fetch failed: " + e.getMessage());
+            result.set("contents", objectMapper.valueToTree(new ObjectNode[]{errorContent}));
             return result;
         }
     }
@@ -687,17 +665,52 @@ public class MCPServer {
      */
     private void registerTools() {
         // Server tools
-        tools.put("execute_command", new CommandTool(plugin));
-        tools.put("get_server_status", new ServerStatusTool(plugin));
-        tools.put("get_server_logs", new ServerLogsTool(plugin));
+        tools.put("minecraft_execute_command", new CommandTool(plugin));
+        tools.put("minecraft_server_status", new ServerStatusTool(plugin));
+        tools.put("minecraft_server_logs", new ServerLogsTool(plugin));
         
         // Player tools
-        tools.put("get_player_list", new PlayerListTool(plugin));
-        tools.put("manage_player", new PlayerManagementTool(plugin));
+        tools.put("minecraft_player_list", new PlayerListTool(plugin));
+        tools.put("minecraft_manage_player", new PlayerManagementTool(plugin));
         
         // World tools
-        tools.put("get_world_info", new WorldInfoTool(plugin));
+        tools.put("minecraft_world_info", new WorldInfoTool(plugin));
         
         plugin.getLogger().info("Registered " + tools.size() + " MCP tools");
+    }
+    
+    /**
+     * Get tool definitions for MCP protocol
+     * 
+     * @return array of tool definitions
+     */
+    private ObjectNode[] getToolDefinitions() {
+        return tools.entrySet().stream()
+            .map(entry -> {
+                ObjectNode toolDef = JsonNodeFactory.instance.objectNode();
+                toolDef.put("name", entry.getKey());
+                toolDef.put("description", entry.getValue().getDescription());
+                toolDef.set("inputSchema", entry.getValue().getInputSchema());
+                return toolDef;
+            })
+            .toArray(ObjectNode[]::new);
+    }
+    
+    /**
+     * Get resource definitions for MCP protocol
+     * 
+     * @return array of resource definitions
+     */
+    private ObjectNode[] getResourceDefinitions() {
+        return resources.entrySet().stream()
+            .map(entry -> {
+                ObjectNode resourceDef = JsonNodeFactory.instance.objectNode();
+                resourceDef.put("uri", "resource://" + entry.getKey());
+                resourceDef.put("name", entry.getValue().getName());
+                resourceDef.put("description", entry.getValue().getDescription());
+                resourceDef.put("mimeType", entry.getValue().getMimeType());
+                return resourceDef;
+            })
+            .toArray(ObjectNode[]::new);
     }
 }

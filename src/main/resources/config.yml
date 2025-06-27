@@ -4,10 +4,8 @@
 mcp-server:
   # Enable or disable the MCP server
   enabled: true
-  # Protocol settings - stdio or http
+  # Protocol settings - http only
   transport: http
-  # Suppress warnings about STDIO transport in server environment (recommended)
-  suppress-stdio-warnings: true
   # HTTP transport settings
   http:
     # HTTP port for the MCP server
