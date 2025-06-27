@@ -14,8 +14,8 @@ mcp-server:
     endpoint: "/mcp"
     # Enable or disable SSE streaming for MCP communication
     sse-enabled: true
-    # Maximum number of SSE connections allowed
-    max-connections: 5
+    # Maximum number of SSE connections allowed (increased for Claude Desktop)
+    max-connections: 20
     # Cross-Origin Resource Sharing (CORS) settings
     cors:
       # Enable or disable CORS
@@ -34,7 +34,7 @@ security:
     # API key for MCP authentication (change this to a secure value)
     api-key: "change-this-to-a-secure-value"
     # Allow connections only from localhost (127.0.0.1)
-    localhost-only: true
+    localhost-only: false
     # Session timeout in minutes (0 = never)
     session-timeout: 30
   
@@ -61,16 +61,16 @@ security:
   rate-limiting:
     # Enable rate limiting
     enabled: true
-    # Maximum number of commands per minute
-    commands-per-minute: 30
-    # Maximum number of failed authentication attempts before temporary ban
-    max-auth-attempts: 5
-    # Temporary ban duration in minutes
-    temp-ban-duration: 15
+    # Maximum number of commands per minute (increased for Claude Desktop)
+    commands-per-minute: 300
+    # Maximum number of failed authentication attempts before temporary ban (increased for Claude Desktop)
+    max-auth-attempts: 50
+    # Temporary ban duration in minutes (reduced for faster recovery)
+    temp-ban-duration: 5
 
-# Debug settings
+# Debug settings (temporarily enabled to monitor Claude Desktop usage)
 debug:
-  enabled: false
+  enabled: true
   log-level: INFO
 
 # Feature toggles
