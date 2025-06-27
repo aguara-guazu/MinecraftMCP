@@ -35,6 +35,12 @@ import jakarta.servlet.AsyncEvent;
 import jakarta.servlet.AsyncListener;
 import jakarta.servlet.ServletException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.BindException;
+import java.net.InetAddress;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * MCP server implementation for MinecraftMCP
@@ -77,8 +83,20 @@ public class MCPServer {
         if (running.compareAndSet(false, true)) {
             plugin.getLogger().info("Starting MCP server with " + plugin.getPluginConfig().getMcpServerTransport() + " transport");
             
+            // Validate configuration before starting
+            if (!validateConfiguration()) {
+                plugin.getLogger().severe("MCP server configuration validation failed");
+                running.set(false);
+                return;
+            }
+            
             if ("http".equalsIgnoreCase(plugin.getPluginConfig().getMcpServerTransport())) {
                 startHttpTransport();
+                
+                // Verify that the server started successfully
+                if (!running.get()) {
+                    plugin.getLogger().severe("MCP HTTP server failed to start");
+                }
             } else {
                 plugin.getLogger().severe("Unsupported transport: " + plugin.getPluginConfig().getMcpServerTransport() + ". Only HTTP transport is supported.");
                 running.set(false);
@@ -441,19 +459,119 @@ public class MCPServer {
     }
     
     /**
+     * Validate the server configuration
+     * 
+     * @return true if configuration is valid, false otherwise
+     */
+    private boolean validateConfiguration() {
+        int port = plugin.getPluginConfig().getHttpPort();
+        String endpoint = plugin.getPluginConfig().getHttpEndpoint();
+        
+        plugin.getLogger().info("Validating MCP server configuration...");
+        
+        // Validate port range
+        if (port < 1 || port > 65535) {
+            plugin.getLogger().severe("Invalid port number: " + port + ". Port must be between 1 and 65535.");
+            return false;
+        }
+        
+        // Validate endpoint format
+        if (endpoint == null || endpoint.trim().isEmpty()) {
+            plugin.getLogger().severe("HTTP endpoint cannot be empty");
+            return false;
+        }
+        
+        if (!endpoint.startsWith("/")) {
+            plugin.getLogger().severe("HTTP endpoint must start with '/': " + endpoint);
+            return false;
+        }
+        
+        // Log configuration being used
+        plugin.getLogger().info("Configuration validation passed:");
+        plugin.getLogger().info("- HTTP Port: " + port);
+        plugin.getLogger().info("- HTTP Endpoint: " + endpoint);
+        plugin.getLogger().info("- SSE Enabled: " + plugin.getPluginConfig().isHttpSseEnabled());
+        plugin.getLogger().info("- CORS Enabled: " + plugin.getPluginConfig().isHttpCorsEnabled());
+        plugin.getLogger().info("- API Key Auth: " + plugin.getPluginConfig().isApiKeyAuthEnabled());
+        plugin.getLogger().info("- Localhost Only: " + plugin.getPluginConfig().isLocalhostOnly());
+        
+        return true;
+    }
+    
+    /**
+     * Check if a port is available for binding
+     * 
+     * @param port the port to check
+     * @return true if available, false otherwise
+     */
+    private boolean isPortAvailable(int port) {
+        try (ServerSocket socket = new ServerSocket(port)) {
+            socket.setReuseAddress(true);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    /**
+     * Test connectivity to the MCP server
+     * 
+     * @return true if server is reachable, false otherwise
+     */
+    public boolean testConnectivity() {
+        if (!running.get() || httpServer == null) {
+            return false;
+        }
+        
+        try {
+            int port = plugin.getPluginConfig().getHttpPort();
+            String endpoint = plugin.getPluginConfig().getHttpEndpoint();
+            
+            // Try to connect to the server
+            try (Socket testSocket = new Socket()) {
+                testSocket.connect(new java.net.InetSocketAddress("localhost", port), 1000);
+                plugin.getLogger().info("MCP server connectivity test passed");
+                plugin.getLogger().info("You can test the MCP endpoint at: http://localhost:" + port + endpoint);
+                return true;
+            }
+        } catch (Exception e) {
+            plugin.getLogger().warning("MCP server connectivity test failed: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
      * Start the HTTP transport
      */
     private void startHttpTransport() {
+        int port = plugin.getPluginConfig().getHttpPort();
+        String endpoint = plugin.getPluginConfig().getHttpEndpoint();
+        
+        plugin.getLogger().info("Attempting to start HTTP server on port " + port + " with endpoint " + endpoint);
+        
+        // Check if port is available before attempting to start
+        if (!isPortAvailable(port)) {
+            plugin.getLogger().severe("Port " + port + " is already in use! Cannot start MCP HTTP server.");
+            plugin.getLogger().severe("Please check if another service is using this port or change the port in config.yml");
+            running.set(false);
+            return;
+        }
+        
+        // Use a CountDownLatch to wait for successful startup
+        CountDownLatch startupLatch = new CountDownLatch(1);
+        
         executorService.submit(() -> {
             try {
-                // Create and configure the HTTP server
-                int port = plugin.getPluginConfig().getHttpPort();
-                String endpoint = plugin.getPluginConfig().getHttpEndpoint();
+                plugin.getLogger().info("Creating Jetty HTTP server...");
                 
+                // Create and configure the HTTP server
                 httpServer = new Server();
                 ServerConnector connector = new ServerConnector(httpServer);
                 connector.setPort(port);
+                connector.setHost("0.0.0.0"); // Bind to all interfaces
                 httpServer.addConnector(connector);
+                
+                plugin.getLogger().info("Configuring servlet context...");
                 
                 ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
                 context.setContextPath("/");
@@ -461,10 +579,12 @@ public class MCPServer {
                 
                 // Add MCP API endpoint servlet for handling MCP requests
                 context.addServlet(new ServletHolder(new MCPApiServlet()), endpoint);
+                plugin.getLogger().info("Added MCP API servlet at " + endpoint);
                 
                 // Add SSE endpoint if enabled
                 if (plugin.getPluginConfig().isHttpSseEnabled()) {
                     context.addServlet(new ServletHolder(new MCPSseServlet()), endpoint + "/sse");
+                    plugin.getLogger().info("Added SSE servlet at " + endpoint + "/sse");
                 }
                 
                 // Add security filter
@@ -472,19 +592,62 @@ public class MCPServer {
                     plugin.getLogger().info("HTTP access logging enabled");
                 }
                 
+                plugin.getLogger().info("Starting Jetty HTTP server...");
+                
                 // Start the server
                 httpServer.start();
-                plugin.getLogger().info("HTTP server started on port " + port + ", endpoint: " + endpoint);
-                plugin.getLogger().info("MCP HTTP transport ready");
+                
+                // Get the actual bound port (in case it was 0 for dynamic allocation)
+                int actualPort = connector.getLocalPort();
+                
+                plugin.getLogger().info("HTTP server successfully started!");
+                plugin.getLogger().info("- Listening on: 0.0.0.0:" + actualPort);
+                plugin.getLogger().info("- MCP API endpoint: http://localhost:" + actualPort + endpoint);
+                if (plugin.getPluginConfig().isHttpSseEnabled()) {
+                    plugin.getLogger().info("- SSE endpoint: http://localhost:" + actualPort + endpoint + "/sse");
+                }
+                plugin.getLogger().info("MCP HTTP transport ready for connections");
+                
+                // Signal successful startup
+                startupLatch.countDown();
                 
                 // Run the server in a blocking way
                 httpServer.join();
+            } catch (BindException e) {
+                plugin.getLogger().severe("Failed to bind to port " + port + ": " + e.getMessage());
+                plugin.getLogger().severe("This usually means the port is already in use by another application.");
+                plugin.getLogger().severe("Try changing the port in config.yml or stop the service using port " + port);
+                running.set(false);
+                startupLatch.countDown();
             } catch (Exception e) {
                 plugin.getLogger().severe("Error starting HTTP transport: " + e.getMessage());
+                plugin.getLogger().severe("Exception type: " + e.getClass().getSimpleName());
                 e.printStackTrace();
                 running.set(false);
+                startupLatch.countDown();
             }
         });
+        
+        // Wait for startup to complete (with timeout)
+        try {
+            if (!startupLatch.await(10, TimeUnit.SECONDS)) {
+                plugin.getLogger().severe("HTTP server startup timed out after 10 seconds");
+                running.set(false);
+            } else if (running.get()) {
+                // Test connectivity after successful startup
+                plugin.getLogger().info("Performing connectivity test...");
+                try {
+                    Thread.sleep(500); // Give server a moment to fully bind
+                    testConnectivity();
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        } catch (InterruptedException e) {
+            plugin.getLogger().severe("HTTP server startup was interrupted");
+            running.set(false);
+            Thread.currentThread().interrupt();
+        }
     }
     
     /**

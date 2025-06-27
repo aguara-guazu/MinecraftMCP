@@ -213,56 +213,59 @@ Retrieve detailed world information.
 
 ## Claude Desktop Integration
 
-### Method 1: Direct HTTP Configuration
+**Important Note:** This project is a **Paper plugin** that runs an embedded HTTP server, not a standard MCP server that can be directly integrated with Claude Desktop using the typical `command`/`args` configuration.
 
-Add this to your Claude Desktop configuration file:
+### Architecture Overview
 
-**macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows:** `%APPDATA%/Claude/claude_desktop_config.json`
+MinecraftMCP works differently from standard MCP servers:
 
-```json
-{
-  "mcpServers": {
-    "minecraft": {
-      "url": "http://localhost:25575/mcp",
-      "auth": {
-        "headers": {
-          "X-API-Key": "your-secure-api-key-here"
-        }
-      }
+- **Standard MCP servers** are standalone executables that Claude Desktop launches using `command` and `args`
+- **MinecraftMCP** is a Paper plugin that runs inside your Minecraft server and exposes MCP functionality via HTTP
+
+### Integration Options
+
+#### Option 1: HTTP API Access
+
+While not directly compatible with Claude Desktop's MCP integration, you can interact with the server using HTTP requests:
+
+```bash
+# Example: Get server status
+curl -X POST http://localhost:25575/mcp \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "get_server_status",
+      "arguments": {}
     }
-  }
-}
+  }'
 ```
 
-### Method 2: Command-Line Configuration
+#### Option 2: MCP Bridge (Future Development)
 
-You can also use a command-line approach in Claude Desktop:
+To enable true Claude Desktop integration, you would need:
 
-```json
-{
-  "mcpServers": {
-    "minecraft": {
-      "command": "curl",
-      "args": [
-        "-X", "POST",
-        "http://localhost:25575/mcp",
-        "-H", "Content-Type: application/json",
-        "-H", "X-API-Key: ${MINECRAFT_API_KEY}",
-        "-d", "@-"
-      ],
-      "env": {
-        "MINECRAFT_API_KEY": "your-secure-api-key-here"
-      }
-    }
-  }
-}
-```
+1. **MCP Bridge Application**: A standalone program that:
+   - Implements standard MCP protocol (stdio/command interface)
+   - Forwards requests to MinecraftMCP's HTTP API
+   - Translates between MCP and HTTP protocols
 
-After configuration:
-1. Restart Claude Desktop
-2. Start your Minecraft server with MinecraftMCP
-3. Begin managing your server through Claude
+
+### Current Limitations
+
+- **No direct Claude Desktop MCP integration** - requires HTTP API calls or bridge development
+- **Plugin dependency** - must run inside a Paper Minecraft server
+- **Server-specific** - tied to a particular Minecraft server instance
+
+### Getting Started
+
+1. Install the plugin on your Paper server
+2. Configure API keys and security settings
+3. Use HTTP API directly or develop/wait for an MCP bridge
+4. Access server management through HTTP requests
 
 ## Commands
 
