@@ -115,7 +115,6 @@ public class WorldInfoTool implements MCPTool {
         worldNode.put("fullTime", world.getFullTime());
         worldNode.put("hasStorm", world.hasStorm());
         worldNode.put("thundering", world.isThundering());
-        worldNode.put("weirdness", world.getAmbientLight(0, 0, 0));
         
         // World border
         WorldBorder border = world.getWorldBorder();
