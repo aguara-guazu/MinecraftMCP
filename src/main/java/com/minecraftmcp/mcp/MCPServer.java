@@ -22,11 +22,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-// Jetty imports for HTTP server
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.ServerConnector;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
+// Jetty imports for HTTP server (using relocated packages)
+import com.minecraftmcp.libs.jetty.server.Server;
+import com.minecraftmcp.libs.jetty.server.ServerConnector;
+import com.minecraftmcp.libs.jetty.servlet.ServletContextHandler;
+import com.minecraftmcp.libs.jetty.servlet.ServletHolder;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -83,6 +83,11 @@ public class MCPServer {
         if (running.compareAndSet(false, true)) {
             plugin.getLogger().info("Starting MCP server with " + plugin.getPluginConfig().getMcpServerTransport() + " transport");
             
+            // Add diagnostic information
+            plugin.getLogger().info("Plugin version: " + plugin.getDescription().getVersion());
+            plugin.getLogger().info("Java version: " + System.getProperty("java.version"));
+            plugin.getLogger().info("Server software: " + plugin.getServer().getName() + " " + plugin.getServer().getVersion());
+            
             // Validate configuration before starting
             if (!validateConfiguration()) {
                 plugin.getLogger().severe("MCP server configuration validation failed");
@@ -96,6 +101,7 @@ public class MCPServer {
                 // Verify that the server started successfully
                 if (!running.get()) {
                     plugin.getLogger().severe("MCP HTTP server failed to start");
+                    plugin.getLogger().severe("Check the error messages above for details");
                 }
             } else {
                 plugin.getLogger().severe("Unsupported transport: " + plugin.getPluginConfig().getMcpServerTransport() + ". Only HTTP transport is supported.");
@@ -564,6 +570,17 @@ public class MCPServer {
             try {
                 plugin.getLogger().info("Creating Jetty HTTP server...");
                 
+                // Diagnostic: Check if Jetty classes are available
+                try {
+                    Class.forName("com.minecraftmcp.libs.jetty.server.Server");
+                    plugin.getLogger().info("Jetty Server class loaded successfully");
+                } catch (ClassNotFoundException e) {
+                    plugin.getLogger().severe("Jetty Server class not found! This indicates a shading/classloader issue: " + e.getMessage());
+                    running.set(false);
+                    startupLatch.countDown();
+                    return;
+                }
+                
                 // Create and configure the HTTP server
                 httpServer = new Server();
                 ServerConnector connector = new ServerConnector(httpServer);
@@ -619,9 +636,17 @@ public class MCPServer {
                 plugin.getLogger().severe("Try changing the port in config.yml or stop the service using port " + port);
                 running.set(false);
                 startupLatch.countDown();
+            } catch (ClassNotFoundException | NoClassDefFoundError e) {
+                plugin.getLogger().severe("Jetty classes not found: " + e.getMessage());
+                plugin.getLogger().severe("This indicates the plugin JAR was not built correctly with Maven shade plugin");
+                plugin.getLogger().severe("Please rebuild the plugin with 'mvn clean package'");
+                e.printStackTrace();
+                running.set(false);
+                startupLatch.countDown();
             } catch (Exception e) {
                 plugin.getLogger().severe("Error starting HTTP transport: " + e.getMessage());
                 plugin.getLogger().severe("Exception type: " + e.getClass().getSimpleName());
+                plugin.getLogger().severe("Full exception details:");
                 e.printStackTrace();
                 running.set(false);
                 startupLatch.countDown();
