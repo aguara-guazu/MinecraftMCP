@@ -118,7 +118,16 @@ public class MCPServer {
                     writer.println(response);
                     writer.flush();
                 } catch (IOException e) {
-                    plugin.getLogger().severe("Error reading from stdin: " + e.getMessage());
+                    if ("Stream closed".equals(e.getMessage())) {
+                        // This is an expected condition when starting via Minecraft server console
+                        // The Minecraft server environment doesn't provide stdin access
+                        if (plugin.getPluginConfig().isDebugEnabled() && !plugin.getPluginConfig().isSuppressStdioWarnings()) {
+                            plugin.getLogger().info("STDIO stream closed. This is normal when running as a plugin.");
+                        }
+                    } else {
+                        // Log other IOException types as errors
+                        plugin.getLogger().severe("Error reading from stdin: " + e.getMessage());
+                    }
                     break;
                 }
             }

@@ -6,6 +6,8 @@ mcp-server:
   enabled: true
   # Protocol settings - stdio is required for MCP integration
   transport: stdio
+  # Suppress warnings about STDIO transport in server environment (recommended)
+  suppress-stdio-warnings: true
   
 # Security settings
 security:

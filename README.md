@@ -39,6 +39,7 @@ After the first run, the plugin will create a `config.yml` file in the `plugins/
 mcp-server:
   enabled: true
   transport: stdio
+  suppress-stdio-warnings: true  # Suppress STDIO transport warnings in server logs
 ```
 
 ### Security Settings
@@ -121,6 +122,27 @@ The following MCP tools are available:
 - `get_world_info`: Get world information
   - Parameters: `world` (string, optional), `includeChunks` (boolean, default false)
   - Example: `{"world": "world_nether", "includeChunks": true}`
+
+## Understanding MCP Transport
+
+MinecraftMCP implements the Model Context Protocol (MCP) to enable AI assistant integration with your Minecraft server. The plugin currently supports the STDIO transport mechanism, which has different behaviors depending on how the server is run:
+
+### STDIO Transport in Server Environment
+
+When MinecraftMCP runs as a plugin in a standard Minecraft server:
+
+- The plugin attempts to use stdin/stdout for MCP communication
+- You will see a message in the logs: `Error reading from stdin: Stream closed`
+- This error is **normal and expected** since the Minecraft server environment doesn't provide stdin access to plugins
+- The plugin will continue to function correctly for in-game commands
+- This error can be suppressed in logs by setting `suppress-stdio-warnings: true` in config.yml (default setting)
+
+### STDIO Transport with Claude Desktop
+
+To use MinecraftMCP with Claude Desktop or other MCP clients:
+
+1. Run the Minecraft server in a way that connects its standard input to Claude
+2. Or run a separate MCP server that communicates with your Minecraft server
 
 ## Claude Desktop Integration
 

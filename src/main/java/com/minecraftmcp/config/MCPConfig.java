@@ -41,6 +41,15 @@ public class MCPConfig {
         return plugin.getConfig().getString("mcp-server.transport", "stdio");
     }
     
+    /**
+     * Check if STDIO transport warnings should be suppressed
+     * 
+     * @return true if warnings should be suppressed, false otherwise
+     */
+    public boolean isSuppressStdioWarnings() {
+        return plugin.getConfig().getBoolean("mcp-server.suppress-stdio-warnings", true);
+    }
+    
     /* Security Configuration */
     
     /**
