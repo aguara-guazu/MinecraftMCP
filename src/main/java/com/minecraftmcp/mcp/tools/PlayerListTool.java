@@ -51,51 +51,60 @@ public class PlayerListTool implements MCPTool {
         ObjectNode result = JsonNodeFactory.instance.objectNode();
         
         try {
-            // Create player array
-            ArrayNode playersArray = JsonNodeFactory.instance.arrayNode();
+            StringBuilder playerText = new StringBuilder();
+            playerText.append("=== Online Players ===\n");
             
-            // Add player information for each online player
-            for (Player player : Bukkit.getOnlinePlayers()) {
-                ObjectNode playerNode = JsonNodeFactory.instance.objectNode();
-                
-                // Basic player info
-                playerNode.put("name", player.getName());
-                playerNode.put("uuid", player.getUniqueId().toString());
-                playerNode.put("displayName", player.getDisplayName());
-                playerNode.put("op", player.isOp());
-                
-                // Location info
-                Location loc = player.getLocation();
-                ObjectNode locationNode = JsonNodeFactory.instance.objectNode();
-                locationNode.put("world", loc.getWorld().getName());
-                locationNode.put("x", Math.round(loc.getX() * 10) / 10.0); // Round to 1 decimal place
-                locationNode.put("y", Math.round(loc.getY() * 10) / 10.0);
-                locationNode.put("z", Math.round(loc.getZ() * 10) / 10.0);
-                playerNode.set("location", locationNode);
-                
-                // Game info
-                playerNode.put("gameMode", player.getGameMode().name());
-                playerNode.put("health", Math.round(player.getHealth() * 10) / 10.0);
-                playerNode.put("foodLevel", player.getFoodLevel());
-                playerNode.put("level", player.getLevel());
-                playerNode.put("exp", Math.round(player.getExp() * 100) / 100.0);
-                
-                // Online status
-                playerNode.put("online", player.isOnline());
-                
-                // Add to players array
-                playersArray.add(playerNode);
+            int playerCount = Bukkit.getOnlinePlayers().size();
+            playerText.append(String.format("Players online: %d/%d\n\n", playerCount, Bukkit.getMaxPlayers()));
+            
+            if (playerCount == 0) {
+                playerText.append("No players currently online.\n");
+            } else {
+                // Add player information for each online player
+                for (Player player : Bukkit.getOnlinePlayers()) {
+                    playerText.append(String.format("• %s", player.getName()));
+                    
+                    if (!player.getName().equals(player.getDisplayName())) {
+                        playerText.append(String.format(" (%s)", player.getDisplayName()));
+                    }
+                    
+                    if (player.isOp()) {
+                        playerText.append(" [OP]");
+                    }
+                    
+                    playerText.append("\n");
+                    
+                    // Location info
+                    Location loc = player.getLocation();
+                    playerText.append(String.format("  World: %s", loc.getWorld().getName()));
+                    playerText.append(String.format(" (%.1f, %.1f, %.1f)\n", loc.getX(), loc.getY(), loc.getZ()));
+                    
+                    // Game info
+                    playerText.append(String.format("  Game Mode: %s", player.getGameMode().name()));
+                    playerText.append(String.format(" | Health: %.1f/20", player.getHealth()));
+                    playerText.append(String.format(" | Food: %d/20", player.getFoodLevel()));
+                    playerText.append(String.format(" | Level: %d", player.getLevel()));
+                    playerText.append(String.format(" | XP: %.0f%%\n", player.getExp() * 100));
+                    playerText.append("\n");
+                }
             }
             
-            result.put("status", "ok");
-            result.put("count", playersArray.size());
-            result.set("players", playersArray);
+            // Format response according to MCP protocol
+            ObjectNode content = JsonNodeFactory.instance.objectNode();
+            content.put("type", "text");
+            content.put("text", playerText.toString());
             
+            result.set("content", JsonNodeFactory.instance.arrayNode().add(content));
             return result;
         } catch (Exception e) {
             plugin.getLogger().severe("Error getting player list: " + e.getMessage());
-            result.put("status", "error");
-            result.put("error", "Failed to get player list: " + e.getMessage());
+            
+            ObjectNode content = JsonNodeFactory.instance.objectNode();
+            content.put("type", "text");
+            content.put("text", "Error getting player list: " + e.getMessage());
+            
+            result.put("isError", true);
+            result.set("content", JsonNodeFactory.instance.arrayNode().add(content));
             return result;
         }
     }

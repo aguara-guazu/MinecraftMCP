@@ -90,17 +90,47 @@ public class ServerStatusTool implements MCPTool {
             systemInfo.put("osVersion", System.getProperty("os.version"));
             systemInfo.put("processors", Runtime.getRuntime().availableProcessors());
             
-            // Add all info to result
-            result.put("status", "ok");
-            result.set("server", serverStatus);
-            result.set("memory", memoryStatus);
-            result.set("system", systemInfo);
+            // Format response according to MCP protocol
+            StringBuilder statusText = new StringBuilder();
+            statusText.append("=== Minecraft Server Status ===\n");
+            statusText.append(String.format("Version: %s\n", Bukkit.getVersion()));
+            statusText.append(String.format("Bukkit Version: %s\n", Bukkit.getBukkitVersion()));
+            statusText.append(String.format("Players: %d/%d\n", Bukkit.getOnlinePlayers().size(), Bukkit.getMaxPlayers()));
             
+            // Add TPS info if available
+            try {
+                double[] tps = Bukkit.getTPS();
+                statusText.append(String.format("TPS: 1m=%.2f, 5m=%.2f, 15m=%.2f\n", tps[0], tps[1], tps[2]));
+                statusText.append(String.format("MSPT: %.2f\n", Bukkit.getAverageTickTime()));
+            } catch (Exception e) {
+                // Silently ignore if not available
+            }
+            
+            statusText.append(String.format("\n=== Memory Usage ===\n"));
+            statusText.append(String.format("Used: %d MB\n", heapMemoryUsage.getUsed() / (1024 * 1024)));
+            statusText.append(String.format("Max: %d MB\n", heapMemoryUsage.getMax() / (1024 * 1024)));
+            statusText.append(String.format("Usage: %d%%\n", (int)(heapMemoryUsage.getUsed() * 100.0 / heapMemoryUsage.getMax())));
+            
+            statusText.append(String.format("\n=== System Info ===\n"));
+            statusText.append(String.format("Java: %s\n", System.getProperty("java.version")));
+            statusText.append(String.format("OS: %s %s\n", System.getProperty("os.name"), System.getProperty("os.version")));
+            statusText.append(String.format("Processors: %d\n", Runtime.getRuntime().availableProcessors()));
+            
+            ObjectNode content = JsonNodeFactory.instance.objectNode();
+            content.put("type", "text");
+            content.put("text", statusText.toString());
+            
+            result.set("content", JsonNodeFactory.instance.arrayNode().add(content));
             return result;
         } catch (Exception e) {
             plugin.getLogger().severe("Error getting server status: " + e.getMessage());
-            result.put("status", "error");
-            result.put("error", "Failed to get server status: " + e.getMessage());
+            
+            ObjectNode content = JsonNodeFactory.instance.objectNode();
+            content.put("type", "text");
+            content.put("text", "Error getting server status: " + e.getMessage());
+            
+            result.put("isError", true);
+            result.set("content", JsonNodeFactory.instance.arrayNode().add(content));
             return result;
         }
     }
