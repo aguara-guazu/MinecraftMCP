@@ -50,6 +50,69 @@ public class MCPConfig {
         return plugin.getConfig().getBoolean("mcp-server.suppress-stdio-warnings", true);
     }
     
+    /**
+     * Get the HTTP port for the MCP server
+     * 
+     * @return the HTTP port
+     */
+    public int getHttpPort() {
+        return plugin.getConfig().getInt("mcp-server.http.port", 25575);
+    }
+    
+    /**
+     * Get the HTTP endpoint for the MCP server
+     * 
+     * @return the HTTP endpoint
+     */
+    public String getHttpEndpoint() {
+        return plugin.getConfig().getString("mcp-server.http.endpoint", "/mcp");
+    }
+    
+    /**
+     * Check if SSE is enabled for the HTTP transport
+     * 
+     * @return true if SSE is enabled, false otherwise
+     */
+    public boolean isHttpSseEnabled() {
+        return plugin.getConfig().getBoolean("mcp-server.http.sse-enabled", true);
+    }
+    
+    /**
+     * Get the maximum number of SSE connections allowed
+     * 
+     * @return the maximum number of SSE connections
+     */
+    public int getMaxHttpConnections() {
+        return plugin.getConfig().getInt("mcp-server.http.max-connections", 5);
+    }
+    
+    /**
+     * Check if CORS is enabled for HTTP transport
+     * 
+     * @return true if CORS is enabled, false otherwise
+     */
+    public boolean isHttpCorsEnabled() {
+        return plugin.getConfig().getBoolean("mcp-server.http.cors.enabled", false);
+    }
+    
+    /**
+     * Get the allowed origins for CORS
+     * 
+     * @return the allowed origins
+     */
+    public String getAllowedCorsOrigins() {
+        return plugin.getConfig().getString("mcp-server.http.cors.allowed-origins", "*");
+    }
+    
+    /**
+     * Check if HTTP access logging is enabled
+     * 
+     * @return true if access logging is enabled, false otherwise
+     */
+    public boolean isHttpAccessLoggingEnabled() {
+        return plugin.getConfig().getBoolean("mcp-server.http.access-logging", false);
+    }
+    
     /* Security Configuration */
     
     /**

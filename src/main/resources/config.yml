@@ -4,10 +4,28 @@
 mcp-server:
   # Enable or disable the MCP server
   enabled: true
-  # Protocol settings - stdio is required for MCP integration
-  transport: stdio
+  # Protocol settings - stdio or http
+  transport: http
   # Suppress warnings about STDIO transport in server environment (recommended)
   suppress-stdio-warnings: true
+  # HTTP transport settings
+  http:
+    # HTTP port for the MCP server
+    port: 25575
+    # Endpoint prefix for MCP API
+    endpoint: "/mcp"
+    # Enable or disable SSE streaming for MCP communication
+    sse-enabled: true
+    # Maximum number of SSE connections allowed
+    max-connections: 5
+    # Cross-Origin Resource Sharing (CORS) settings
+    cors:
+      # Enable or disable CORS
+      enabled: false
+      # Allowed origins (* for all, or specific domains)
+      allowed-origins: "*"
+    # Access logging
+    access-logging: false
   
 # Security settings
 security:

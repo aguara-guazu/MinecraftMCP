@@ -23,6 +23,18 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+// Jetty imports for HTTP server
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.servlet.ServletContextHandler;
+import org.eclipse.jetty.servlet.ServletHolder;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.AsyncContext;
+import jakarta.servlet.ServletException;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * MCP server implementation for MinecraftMCP
  */
@@ -32,6 +44,10 @@ public class MCPServer {
     private final ObjectMapper objectMapper;
     private final ExecutorService executorService;
     private final AtomicBoolean running = new AtomicBoolean(false);
+    
+    // HTTP server for HTTP transport
+    private Server httpServer;
+    private final Map<String, AsyncContext> sseClients = new ConcurrentHashMap<>();
     
     // MCP tools registry
     private final Map<String, MCPTool> tools = new HashMap<>();
@@ -62,6 +78,8 @@ public class MCPServer {
             
             if ("stdio".equalsIgnoreCase(plugin.getPluginConfig().getMcpServerTransport())) {
                 startStdioTransport();
+            } else if ("http".equalsIgnoreCase(plugin.getPluginConfig().getMcpServerTransport())) {
+                startHttpTransport();
             } else {
                 plugin.getLogger().severe("Unsupported transport: " + plugin.getPluginConfig().getMcpServerTransport());
                 running.set(false);
@@ -78,6 +96,16 @@ public class MCPServer {
         if (running.compareAndSet(true, false)) {
             plugin.getLogger().info("Stopping MCP server");
             executorService.shutdown();
+            
+            // Stop HTTP server if running
+            if (httpServer != null) {
+                try {
+                    httpServer.stop();
+                    plugin.getLogger().info("HTTP server stopped");
+                } catch (Exception e) {
+                    plugin.getLogger().severe("Error stopping HTTP server: " + e.getMessage());
+                }
+            }
         } else {
             plugin.getLogger().warning("MCP server is not running");
         }
@@ -134,6 +162,50 @@ public class MCPServer {
             
             plugin.getLogger().info("MCP STDIO transport stopped");
         });
+    }
+    
+    /**
+     * Send SSE event to a specific client
+     * 
+     * @param sessionId the session ID of the client
+     * @param event the event type
+     * @param data the event data
+     * @return true if successful, false otherwise
+     */
+    private boolean sendSseEvent(String sessionId, String event, String data) {
+        AsyncContext context = sseClients.get(sessionId);
+        if (context == null) {
+            return false;
+        }
+        
+        try {
+            HttpServletResponse response = (HttpServletResponse) context.getResponse();
+            PrintWriter writer = response.getWriter();
+            
+            if (event != null && !event.isEmpty()) {
+                writer.write("event: " + event + "\n");
+            }
+            writer.write("data: " + data + "\n\n");
+            writer.flush();
+            return true;
+        } catch (IOException e) {
+            plugin.getLogger().severe("Error sending SSE event: " + e.getMessage());
+            sseClients.remove(sessionId);
+            context.complete();
+            return false;
+        }
+    }
+    
+    /**
+     * Send SSE event to all connected clients
+     * 
+     * @param event the event type
+     * @param data the event data
+     */
+    private void sendSseEventToAll(String event, String data) {
+        for (String sessionId : sseClients.keySet()) {
+            sendSseEvent(sessionId, event, data);
+        }
     }
     
     /**
@@ -384,6 +456,224 @@ public class MCPServer {
             result.put("status", "error");
             result.put("error", "Resource fetch failed: " + e.getMessage());
             return result;
+        }
+    }
+    
+    /**
+     * Start the HTTP transport
+     */
+    private void startHttpTransport() {
+        executorService.submit(() -> {
+            try {
+                // Create and configure the HTTP server
+                int port = plugin.getPluginConfig().getHttpPort();
+                String endpoint = plugin.getPluginConfig().getHttpEndpoint();
+                
+                httpServer = new Server();
+                ServerConnector connector = new ServerConnector(httpServer);
+                connector.setPort(port);
+                httpServer.addConnector(connector);
+                
+                ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
+                context.setContextPath("/");
+                httpServer.setHandler(context);
+                
+                // Add MCP API endpoint servlet for handling MCP requests
+                context.addServlet(new ServletHolder(new MCPApiServlet()), endpoint);
+                
+                // Add SSE endpoint if enabled
+                if (plugin.getPluginConfig().isHttpSseEnabled()) {
+                    context.addServlet(new ServletHolder(new MCPSseServlet()), endpoint + "/sse");
+                }
+                
+                // Add security filter
+                if (plugin.getPluginConfig().isHttpAccessLoggingEnabled()) {
+                    plugin.getLogger().info("HTTP access logging enabled");
+                }
+                
+                // Start the server
+                httpServer.start();
+                plugin.getLogger().info("HTTP server started on port " + port + ", endpoint: " + endpoint);
+                plugin.getLogger().info("MCP HTTP transport ready");
+                
+                // Run the server in a blocking way
+                httpServer.join();
+            } catch (Exception e) {
+                plugin.getLogger().severe("Error starting HTTP transport: " + e.getMessage());
+                e.printStackTrace();
+                running.set(false);
+            }
+        });
+    }
+    
+    /**
+     * HTTP servlet for handling MCP API requests
+     */
+    private class MCPApiServlet extends HttpServlet {
+        @Override
+        protected void doOptions(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+            // Add CORS headers if enabled (for preflight requests)
+            if (plugin.getPluginConfig().isHttpCorsEnabled()) {
+                String allowedOrigins = plugin.getPluginConfig().getAllowedCorsOrigins();
+                response.setHeader("Access-Control-Allow-Origin", allowedOrigins);
+                response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+                response.setHeader("Access-Control-Allow-Headers", "X-API-Key, Content-Type");
+                response.setStatus(HttpServletResponse.SC_OK);
+            }
+        }
+        
+        @Override
+        protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+            // Add CORS headers if enabled
+            if (plugin.getPluginConfig().isHttpCorsEnabled()) {
+                String allowedOrigins = plugin.getPluginConfig().getAllowedCorsOrigins();
+                response.setHeader("Access-Control-Allow-Origin", allowedOrigins);
+                response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+                response.setHeader("Access-Control-Allow-Headers", "X-API-Key, Content-Type");
+            }
+            
+            // Access logging
+            if (plugin.getPluginConfig().isHttpAccessLoggingEnabled()) {
+                plugin.getLogger().info("HTTP API request from " + request.getRemoteAddr());
+            }
+            
+            // Validate authentication if enabled
+            if (plugin.getPluginConfig().isApiKeyAuthEnabled()) {
+                String apiKey = request.getHeader("X-API-Key");
+                String source = request.getRemoteAddr();
+                
+                if (apiKey == null || !plugin.getSecurityManager().validateApiKey(apiKey, "MCP-HTTP-" + source)) {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.getWriter().println("{\"error\":\"Authentication failed\"}");
+                    return;
+                }
+                
+                // Check if localhost only is enforced
+                if (plugin.getPluginConfig().isLocalhostOnly() && !request.getRemoteAddr().equals("127.0.0.1") && !request.getRemoteAddr().equals("0:0:0:0:0:0:0:1")) {
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.getWriter().println("{\"error\":\"Localhost only connections are enforced\"}");
+                    return;
+                }
+            }
+            
+            // Read the request body
+            BufferedReader reader = request.getReader();
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line);
+            }
+            
+            // Process the MCP request
+            String requestBody = sb.toString();
+            String responseBody = processRequest(requestBody);
+            
+            // Write the response
+            response.setContentType("application/json");
+            response.setStatus(HttpServletResponse.SC_OK);
+            response.getWriter().println(responseBody);
+        }
+    }
+    
+    /**
+     * HTTP servlet for handling SSE connections
+     */
+    private class MCPSseServlet extends HttpServlet {
+        @Override
+        protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+            // Validate authentication if enabled
+            if (plugin.getPluginConfig().isApiKeyAuthEnabled()) {
+                String apiKey = request.getHeader("X-API-Key");
+                String source = request.getRemoteAddr();
+                
+                if (apiKey == null || !plugin.getSecurityManager().validateApiKey(apiKey, "MCP-SSE-" + source)) {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.getWriter().println("{\"error\":\"Authentication failed\"}");
+                    return;
+                }
+                
+                // Check if localhost only is enforced
+                if (plugin.getPluginConfig().isLocalhostOnly() && !request.getRemoteAddr().equals("127.0.0.1") && !request.getRemoteAddr().equals("0:0:0:0:0:0:0:1")) {
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.getWriter().println("{\"error\":\"Localhost only connections are enforced\"}");
+                    return;
+                }
+            }
+            
+            // Check if we've reached the maximum number of connections
+            int maxConnections = plugin.getPluginConfig().getMaxHttpConnections();
+            if (sseClients.size() >= maxConnections) {
+                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+                response.getWriter().println("{\"error\":\"Maximum number of connections reached\"}");
+                return;
+            }
+            
+            // Add CORS headers if enabled
+            if (plugin.getPluginConfig().isHttpCorsEnabled()) {
+                String allowedOrigins = plugin.getPluginConfig().getAllowedCorsOrigins();
+                response.setHeader("Access-Control-Allow-Origin", allowedOrigins);
+                response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+                response.setHeader("Access-Control-Allow-Headers", "X-API-Key");
+                response.setHeader("Access-Control-Expose-Headers", "X-Session-ID");
+                
+                // Handle preflight requests
+                if (request.getMethod().equalsIgnoreCase("OPTIONS")) {
+                    response.setStatus(HttpServletResponse.SC_OK);
+                    return;
+                }
+            }
+            
+            // Generate session ID for this SSE connection
+            UUID sessionId = UUID.randomUUID();
+            
+            // Configure the response for SSE
+            response.setContentType("text/event-stream");
+            response.setCharacterEncoding("UTF-8");
+            response.setHeader("Cache-Control", "no-cache");
+            response.setHeader("Connection", "keep-alive");
+            response.setHeader("X-Session-ID", sessionId.toString());
+            
+            // Create async context and store it
+            AsyncContext asyncContext = request.startAsync();
+            asyncContext.setTimeout(0); // No timeout
+            sseClients.put(sessionId.toString(), asyncContext);
+            
+            // Add listener for client disconnection
+            asyncContext.addListener(new AsyncContext.Listener() {
+                @Override
+                public void onTimeout(AsyncContext context) {
+                    sseClients.remove(sessionId.toString());
+                }
+                
+                @Override
+                public void onError(AsyncContext context, Throwable error) {
+                    sseClients.remove(sessionId.toString());
+                }
+                
+                @Override
+                public void onComplete(AsyncContext context) {
+                    sseClients.remove(sessionId.toString());
+                }
+                
+                @Override
+                public void onStartAsync(AsyncContext context) {
+                    // Not used
+                }
+            });
+            
+            // Send a welcome message
+            try {
+                PrintWriter writer = response.getWriter();
+                writer.write("data: {\"type\":\"connected\",\"sessionId\":\"" + sessionId + "\"}\n\n");
+                writer.flush();
+            } catch (IOException e) {
+                plugin.getLogger().severe("Error sending SSE welcome message: " + e.getMessage());
+                asyncContext.complete();
+                sseClients.remove(sessionId.toString());
+            }
+            
+            // Log the connection
+            plugin.getLogger().info("SSE client connected: " + sessionId);
         }
     }
     

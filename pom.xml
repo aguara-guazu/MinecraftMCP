@@ -6,7 +6,7 @@
 
     <groupId>com.minecraftmcp</groupId>
     <artifactId>minecraft-mcp</artifactId>
-    <version>1.0.3</version>
+    <version>1.0.4</version>
     <packaging>jar</packaging>
 
     <name>MinecraftMCP</name>
@@ -58,6 +58,28 @@
             <scope>compile</scope>
         </dependency>
         
+        <!-- Jetty for embedded HTTP server -->
+        <dependency>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-server</artifactId>
+            <version>11.0.19</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-servlet</artifactId>
+            <version>11.0.19</version>
+            <scope>compile</scope>
+        </dependency>
+        
+        <!-- SSE (Server-Sent Events) support -->
+        <dependency>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-servlets</artifactId>
+            <version>11.0.19</version>
+            <scope>compile</scope>
+        </dependency>
+        
         <!-- Testing -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -106,6 +128,10 @@
                                 <relocation>
                                     <pattern>org.slf4j</pattern>
                                     <shadedPattern>com.minecraftmcp.libs.slf4j</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>org.eclipse.jetty</pattern>
+                                    <shadedPattern>com.minecraftmcp.libs.jetty</shadedPattern>
                                 </relocation>
                             </relocations>
                         </configuration>

@@ -125,11 +125,11 @@ The following MCP tools are available:
 
 ## Understanding MCP Transport
 
-MinecraftMCP implements the Model Context Protocol (MCP) to enable AI assistant integration with your Minecraft server. The plugin currently supports the STDIO transport mechanism, which has different behaviors depending on how the server is run:
+MinecraftMCP implements the Model Context Protocol (MCP) to enable AI assistant integration with your Minecraft server. The plugin supports two transport mechanisms:
 
-### STDIO Transport in Server Environment
+### STDIO Transport 
 
-When MinecraftMCP runs as a plugin in a standard Minecraft server:
+When using STDIO transport in a standard Minecraft server environment:
 
 - The plugin attempts to use stdin/stdout for MCP communication
 - You will see a message in the logs: `Error reading from stdin: Stream closed`
@@ -137,21 +137,52 @@ When MinecraftMCP runs as a plugin in a standard Minecraft server:
 - The plugin will continue to function correctly for in-game commands
 - This error can be suppressed in logs by setting `suppress-stdio-warnings: true` in config.yml (default setting)
 
-### STDIO Transport with Claude Desktop
+### HTTP Transport
 
-To use MinecraftMCP with Claude Desktop or other MCP clients:
+HTTP transport is recommended for Claude Desktop integration and provides a more reliable connection:
 
-1. Run the Minecraft server in a way that connects its standard input to Claude
-2. Or run a separate MCP server that communicates with your Minecraft server
+- Exposes MCP functionality over HTTP, making it directly accessible to Claude Desktop
+- Includes Server-Sent Events (SSE) for real-time communication
+- Supports secure authentication and localhost-only connections
+
+To configure HTTP transport:
+
+```yaml
+mcp-server:
+  enabled: true
+  transport: http  # Set to 'http' instead of 'stdio'
+  http:
+    port: 25575     # HTTP port for the MCP server
+    endpoint: "/mcp" # Endpoint prefix for MCP API
+    sse-enabled: true # Enable SSE for real-time communication
+    max-connections: 5 # Maximum number of SSE connections allowed
+    cors:
+      enabled: false  # Enable CORS for cross-origin requests
+      allowed-origins: "*"  # Allowed origins for CORS
+    access-logging: false # Enable access logging
+```
 
 ## Claude Desktop Integration
 
 To integrate MinecraftMCP with Claude Desktop, follow these steps:
 
-1. Configure Claude Desktop for MCP support
-2. Create a new MCP connection using stdio transport
-3. Configure the API key authentication
+### Using HTTP Transport (Recommended)
+
+1. Configure the plugin to use HTTP transport in config.yml
+2. Start your Minecraft server with the plugin installed
+3. In Claude Desktop, create a new MCP connection:
+   - Transport type: `HTTP`
+   - URL: `http://localhost:25575/mcp` (adjust port if changed in config)
+   - Authentication: Enable API key authentication and use the key from your config.yml
 4. Connect and begin interacting with your Minecraft server
+
+### Using STDIO Transport (Alternative)
+
+1. Configure the plugin to use STDIO transport in config.yml
+2. Configure Claude Desktop for MCP support
+3. Create a new MCP connection using stdio transport
+4. Configure the API key authentication
+5. Connect and begin interacting with your Minecraft server
 
 ## Security Considerations
 
