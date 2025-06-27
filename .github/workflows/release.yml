@@ -11,8 +11,8 @@ on:
     inputs:
       version:
         description: 'Release version (e.g., 1.0.0)'
-        required: true
-        default: '1.0.0'
+        required: false
+        default: 'auto'
         type: string
 
 # Add explicit permissions for creating releases
@@ -41,7 +41,13 @@ jobs:
         id: get_version
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            if [ "${{ github.event.inputs.version }}" == "auto" ] || [ -z "${{ github.event.inputs.version }}" ]; then
+              # Extract version from pom.xml
+              echo "version=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)" >> $GITHUB_OUTPUT
+            else
+              # Use manually provided version
+              echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            fi
           else
             # Extract version from tag name (remove 'v' prefix)
             echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
