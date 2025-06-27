@@ -45,6 +45,74 @@ public class PlayerManagementTool implements MCPTool {
     }
     
     @Override
+    public JsonNode getInputSchema() {
+        ObjectNode schema = JsonNodeFactory.instance.objectNode();
+        schema.put("type", "object");
+        
+        ObjectNode properties = JsonNodeFactory.instance.objectNode();
+        
+        ObjectNode actionProp = JsonNodeFactory.instance.objectNode();
+        actionProp.put("type", "string");
+        actionProp.put("description", "Action to perform");
+        actionProp.set("enum", JsonNodeFactory.instance.arrayNode()
+            .add("kick").add("ban").add("unban").add("op").add("deop")
+            .add("teleport").add("teleport_to_player").add("gamemode"));
+        properties.set("action", actionProp);
+        
+        ObjectNode playerProp = JsonNodeFactory.instance.objectNode();
+        playerProp.put("type", "string");
+        playerProp.put("description", "Target player name");
+        properties.set("player", playerProp);
+        
+        ObjectNode reasonProp = JsonNodeFactory.instance.objectNode();
+        reasonProp.put("type", "string");
+        reasonProp.put("description", "Reason for kick/ban actions");
+        properties.set("reason", reasonProp);
+        
+        ObjectNode durationProp = JsonNodeFactory.instance.objectNode();
+        durationProp.put("type", "integer");
+        durationProp.put("description", "Ban duration in minutes (0 = permanent)");
+        properties.set("duration", durationProp);
+        
+        ObjectNode worldProp = JsonNodeFactory.instance.objectNode();
+        worldProp.put("type", "string");
+        worldProp.put("description", "Target world for teleportation");
+        properties.set("world", worldProp);
+        
+        ObjectNode xProp = JsonNodeFactory.instance.objectNode();
+        xProp.put("type", "number");
+        xProp.put("description", "X coordinate");
+        properties.set("x", xProp);
+        
+        ObjectNode yProp = JsonNodeFactory.instance.objectNode();
+        yProp.put("type", "number");
+        yProp.put("description", "Y coordinate");
+        properties.set("y", yProp);
+        
+        ObjectNode zProp = JsonNodeFactory.instance.objectNode();
+        zProp.put("type", "number");
+        zProp.put("description", "Z coordinate");
+        properties.set("z", zProp);
+        
+        ObjectNode targetPlayerProp = JsonNodeFactory.instance.objectNode();
+        targetPlayerProp.put("type", "string");
+        targetPlayerProp.put("description", "Target player for teleport_to_player action");
+        properties.set("target_player", targetPlayerProp);
+        
+        ObjectNode gamemodeProp = JsonNodeFactory.instance.objectNode();
+        gamemodeProp.put("type", "string");
+        gamemodeProp.put("description", "Game mode for gamemode action");
+        gamemodeProp.set("enum", JsonNodeFactory.instance.arrayNode()
+            .add("survival").add("creative").add("adventure").add("spectator"));
+        properties.set("gamemode", gamemodeProp);
+        
+        schema.set("properties", properties);
+        schema.set("required", JsonNodeFactory.instance.arrayNode().add("action").add("player"));
+        
+        return schema;
+    }
+    
+    @Override
     public ObjectNode execute(JsonNode parameters) {
         ObjectNode result = JsonNodeFactory.instance.objectNode();
         

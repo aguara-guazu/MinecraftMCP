@@ -52,6 +52,47 @@ public class ServerLogsTool implements MCPTool {
     }
     
     @Override
+    public JsonNode getInputSchema() {
+        ObjectNode schema = JsonNodeFactory.instance.objectNode();
+        schema.put("type", "object");
+        
+        ObjectNode properties = JsonNodeFactory.instance.objectNode();
+        
+        ObjectNode limitProp = JsonNodeFactory.instance.objectNode();
+        limitProp.put("type", "integer");
+        limitProp.put("description", "Maximum number of log entries to return");
+        limitProp.put("default", 100);
+        properties.set("limit", limitProp);
+        
+        ObjectNode levelProp = JsonNodeFactory.instance.objectNode();
+        levelProp.put("type", "string");
+        levelProp.put("description", "Log level filter (INFO, WARNING, ERROR)");
+        levelProp.set("enum", JsonNodeFactory.instance.arrayNode().add("INFO").add("WARNING").add("ERROR"));
+        properties.set("level", levelProp);
+        
+        ObjectNode searchProp = JsonNodeFactory.instance.objectNode();
+        searchProp.put("type", "string");
+        searchProp.put("description", "Search term to filter logs");
+        properties.set("search", searchProp);
+        
+        ObjectNode fromTimeProp = JsonNodeFactory.instance.objectNode();
+        fromTimeProp.put("type", "string");
+        fromTimeProp.put("description", "ISO timestamp to filter logs from");
+        properties.set("fromTime", fromTimeProp);
+        
+        ObjectNode includeOlderProp = JsonNodeFactory.instance.objectNode();
+        includeOlderProp.put("type", "boolean");
+        includeOlderProp.put("description", "Include older log files");
+        includeOlderProp.put("default", false);
+        properties.set("includeOlderLogs", includeOlderProp);
+        
+        schema.set("properties", properties);
+        schema.set("required", JsonNodeFactory.instance.arrayNode());
+        
+        return schema;
+    }
+    
+    @Override
     public ObjectNode execute(JsonNode parameters) {
         ObjectNode result = JsonNodeFactory.instance.objectNode();
         

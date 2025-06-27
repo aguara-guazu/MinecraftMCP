@@ -38,6 +38,30 @@ public class WorldInfoTool implements MCPTool {
     }
     
     @Override
+    public JsonNode getInputSchema() {
+        ObjectNode schema = JsonNodeFactory.instance.objectNode();
+        schema.put("type", "object");
+        
+        ObjectNode properties = JsonNodeFactory.instance.objectNode();
+        
+        ObjectNode worldProp = JsonNodeFactory.instance.objectNode();
+        worldProp.put("type", "string");
+        worldProp.put("description", "Specific world name (optional)");
+        properties.set("world", worldProp);
+        
+        ObjectNode includeChunksProp = JsonNodeFactory.instance.objectNode();
+        includeChunksProp.put("type", "boolean");
+        includeChunksProp.put("description", "Include chunk information");
+        includeChunksProp.put("default", false);
+        properties.set("includeChunks", includeChunksProp);
+        
+        schema.set("properties", properties);
+        schema.set("required", JsonNodeFactory.instance.arrayNode());
+        
+        return schema;
+    }
+    
+    @Override
     public ObjectNode execute(JsonNode parameters) {
         ObjectNode result = JsonNodeFactory.instance.objectNode();
         

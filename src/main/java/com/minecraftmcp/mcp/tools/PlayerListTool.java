@@ -38,6 +38,15 @@ public class PlayerListTool implements MCPTool {
     }
     
     @Override
+    public JsonNode getInputSchema() {
+        ObjectNode schema = JsonNodeFactory.instance.objectNode();
+        schema.put("type", "object");
+        schema.set("properties", JsonNodeFactory.instance.objectNode());
+        schema.set("required", JsonNodeFactory.instance.arrayNode());
+        return schema;
+    }
+    
+    @Override
     public ObjectNode execute(JsonNode parameters) {
         ObjectNode result = JsonNodeFactory.instance.objectNode();
         
