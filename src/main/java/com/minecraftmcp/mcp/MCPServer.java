@@ -22,11 +22,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-// Jetty imports for HTTP server (using relocated packages)
-import com.minecraftmcp.libs.jetty.server.Server;
-import com.minecraftmcp.libs.jetty.server.ServerConnector;
-import com.minecraftmcp.libs.jetty.servlet.ServletContextHandler;
-import com.minecraftmcp.libs.jetty.servlet.ServletHolder;
+// Jetty imports for HTTP server
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.servlet.ServletContextHandler;
+import org.eclipse.jetty.servlet.ServletHolder;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -572,10 +572,11 @@ public class MCPServer {
                 
                 // Diagnostic: Check if Jetty classes are available
                 try {
-                    Class.forName("com.minecraftmcp.libs.jetty.server.Server");
+                    Class.forName("org.eclipse.jetty.server.Server");
                     plugin.getLogger().info("Jetty Server class loaded successfully");
                 } catch (ClassNotFoundException e) {
-                    plugin.getLogger().severe("Jetty Server class not found! This indicates a shading/classloader issue: " + e.getMessage());
+                    plugin.getLogger().severe("Jetty Server class not found! This indicates a dependency issue: " + e.getMessage());
+                    plugin.getLogger().severe("The Jetty JAR may not be included in the plugin or there's a classloader issue");
                     running.set(false);
                     startupLatch.countDown();
                     return;
@@ -588,11 +589,17 @@ public class MCPServer {
                 connector.setHost("0.0.0.0"); // Bind to all interfaces
                 httpServer.addConnector(connector);
                 
+                plugin.getLogger().info("Jetty server created, attempting to bind to 0.0.0.0:" + port);
+                
                 plugin.getLogger().info("Configuring servlet context...");
                 
                 ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
                 context.setContextPath("/");
                 httpServer.setHandler(context);
+                
+                // Add a simple health check endpoint (no auth required)
+                context.addServlet(new ServletHolder(new HealthCheckServlet()), "/health");
+                plugin.getLogger().info("Added health check servlet at /health");
                 
                 // Add MCP API endpoint servlet for handling MCP requests
                 context.addServlet(new ServletHolder(new MCPApiServlet()), endpoint);
@@ -612,18 +619,37 @@ public class MCPServer {
                 plugin.getLogger().info("Starting Jetty HTTP server...");
                 
                 // Start the server
+                long startTime = System.currentTimeMillis();
                 httpServer.start();
+                long endTime = System.currentTimeMillis();
+                
+                plugin.getLogger().info("Jetty start() method completed in " + (endTime - startTime) + "ms");
+                
+                // Verify the server is actually started
+                if (!httpServer.isStarted()) {
+                    plugin.getLogger().severe("Jetty server reports it is NOT started!");
+                    running.set(false);
+                    startupLatch.countDown();
+                    return;
+                }
+                
+                plugin.getLogger().info("Jetty server state: " + httpServer.getState());
                 
                 // Get the actual bound port (in case it was 0 for dynamic allocation)
                 int actualPort = connector.getLocalPort();
                 
                 plugin.getLogger().info("HTTP server successfully started!");
+                plugin.getLogger().info("- Server state: " + httpServer.getState());
+                plugin.getLogger().info("- Connector state: " + connector.getState());
                 plugin.getLogger().info("- Listening on: 0.0.0.0:" + actualPort);
+                plugin.getLogger().info("- Health check: http://localhost:" + actualPort + "/health");
                 plugin.getLogger().info("- MCP API endpoint: http://localhost:" + actualPort + endpoint);
+                plugin.getLogger().info("- External access: http://YOUR_SERVER_IP:" + actualPort + endpoint);
                 if (plugin.getPluginConfig().isHttpSseEnabled()) {
                     plugin.getLogger().info("- SSE endpoint: http://localhost:" + actualPort + endpoint + "/sse");
                 }
                 plugin.getLogger().info("MCP HTTP transport ready for connections");
+                plugin.getLogger().info("Test connectivity with: curl http://localhost:" + actualPort + "/health");
                 
                 // Signal successful startup
                 startupLatch.countDown();
@@ -672,6 +698,18 @@ public class MCPServer {
             plugin.getLogger().severe("HTTP server startup was interrupted");
             running.set(false);
             Thread.currentThread().interrupt();
+        }
+    }
+    
+    /**
+     * Simple health check servlet (no authentication required)
+     */
+    private class HealthCheckServlet extends HttpServlet {
+        @Override
+        protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+            response.setContentType("application/json");
+            response.setStatus(HttpServletResponse.SC_OK);
+            response.getWriter().println("{\"status\":\"healthy\",\"server\":\"MinecraftMCP\",\"version\":\"" + plugin.getDescription().getVersion() + "\",\"timestamp\":" + System.currentTimeMillis() + "}");
         }
     }
     
