@@ -32,6 +32,8 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.AsyncContext;
+import jakarta.servlet.AsyncEvent;
+import jakarta.servlet.AsyncListener;
 import jakarta.servlet.ServletException;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -638,25 +640,28 @@ public class MCPServer {
             asyncContext.setTimeout(0); // No timeout
             sseClients.put(sessionId.toString(), asyncContext);
             
-            // Add listener for client disconnection
-            asyncContext.addListener(new AsyncContext.Listener() {
+            // Add listeners for client disconnection using Jakarta Servlet 5.0 API
+            asyncContext.addListener(new jakarta.servlet.AsyncListener() {
                 @Override
-                public void onTimeout(AsyncContext context) {
+                public void onTimeout(AsyncEvent event) {
                     sseClients.remove(sessionId.toString());
+                    plugin.getLogger().info("SSE client timed out: " + sessionId);
                 }
                 
                 @Override
-                public void onError(AsyncContext context, Throwable error) {
+                public void onError(AsyncEvent event) {
                     sseClients.remove(sessionId.toString());
+                    plugin.getLogger().info("SSE client error: " + sessionId);
                 }
                 
                 @Override
-                public void onComplete(AsyncContext context) {
+                public void onComplete(AsyncEvent event) {
                     sseClients.remove(sessionId.toString());
+                    plugin.getLogger().info("SSE client disconnected: " + sessionId);
                 }
                 
                 @Override
-                public void onStartAsync(AsyncContext context) {
+                public void onStartAsync(AsyncEvent event) {
                     // Not used
                 }
             });
