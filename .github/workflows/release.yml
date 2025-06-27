@@ -1,0 +1,83 @@
+name: Build and Release
+
+on:
+  # Trigger on push to main branch with tags matching v*
+  push:
+    tags:
+      - 'v*'
+  
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.0.0)'
+        required: true
+        default: '1.0.0'
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up JDK 21
+        uses: actions/setup-java@v3
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+      
+      - name: Build with Maven
+        run: mvn -B clean package --file pom.xml
+      
+      - name: Determine version
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            # Extract version from tag name (remove 'v' prefix)
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          release_name: MinecraftMCP v${{ steps.get_version.outputs.version }}
+          draft: false
+          prerelease: false
+          body: |
+            # MinecraftMCP Release v${{ steps.get_version.outputs.version }}
+            
+            A Minecraft Paper plugin that exposes server terminal access through the Model Context Protocol (MCP) for remote administration via Claude Desktop.
+            
+            ## Installation
+            1. Download the JAR file
+            2. Place it in your server's `plugins` directory
+            3. Restart your server or run `/reload confirm`
+            4. Configure in `plugins/MinecraftMCP/config.yml`
+            
+            ## Features
+            - Secure server command execution via MCP
+            - Player management and monitoring
+            - Server status and performance metrics
+            - World information and management
+            - Security features including authentication and command whitelisting
+      
+      - name: Upload Release Asset
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./target/minecraft-mcp-${{ steps.get_version.outputs.version }}.jar
+          asset_name: MinecraftMCP-${{ steps.get_version.outputs.version }}.jar
+          asset_content_type: application/java-archive
