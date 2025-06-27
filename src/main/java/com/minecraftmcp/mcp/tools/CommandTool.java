@@ -35,6 +35,23 @@ public class CommandTool implements MCPTool {
     }
     
     @Override
+    public JsonNode getInputSchema() {
+        ObjectNode schema = JsonNodeFactory.instance.objectNode();
+        schema.put("type", "object");
+        
+        ObjectNode properties = JsonNodeFactory.instance.objectNode();
+        ObjectNode commandProp = JsonNodeFactory.instance.objectNode();
+        commandProp.put("type", "string");
+        commandProp.put("description", "Minecraft server command to execute");
+        properties.set("command", commandProp);
+        
+        schema.set("properties", properties);
+        schema.set("required", JsonNodeFactory.instance.arrayNode().add("command"));
+        
+        return schema;
+    }
+    
+    @Override
     public ObjectNode execute(JsonNode parameters) {
         ObjectNode result = JsonNodeFactory.instance.objectNode();
         
@@ -42,15 +59,21 @@ public class CommandTool implements MCPTool {
             String command = parameters.path("command").asText();
             
             if (command == null || command.isEmpty()) {
-                result.put("status", "error");
-                result.put("error", "Command parameter is required");
+                ObjectNode errorContent = JsonNodeFactory.instance.objectNode();
+                errorContent.put("type", "text");
+                errorContent.put("text", "Command parameter is required");
+                result.set("content", JsonNodeFactory.instance.arrayNode().add(errorContent));
+                result.put("isError", true);
                 return result;
             }
             
             // Check command whitelist
             if (!plugin.getSecurityManager().isCommandAllowed(command)) {
-                result.put("status", "error");
-                result.put("error", "Command not allowed: " + command.split(" ")[0]);
+                ObjectNode errorContent = JsonNodeFactory.instance.objectNode();
+                errorContent.put("type", "text");
+                errorContent.put("text", "Command not allowed: " + command.split(" ")[0]);
+                result.set("content", JsonNodeFactory.instance.arrayNode().add(errorContent));
+                result.put("isError", true);
                 return result;
             }
             
@@ -77,15 +100,28 @@ public class CommandTool implements MCPTool {
                 waitMs += 10;
             }
             
-            // Populate result
-            result.put("status", commandSuccess[0] ? "ok" : "error");
-            result.put("output", commandOutput[0] != null ? commandOutput[0] : "Command timed out or failed");
+            // Format result according to MCP protocol
+            ObjectNode content = JsonNodeFactory.instance.objectNode();
+            content.put("type", "text");
             
+            if (commandSuccess[0]) {
+                content.put("text", String.format("Command executed successfully: %s\nResult: %s", 
+                    command, commandOutput[0] != null ? commandOutput[0] : "Command completed"));
+            } else {
+                content.put("text", String.format("Command failed: %s\nError: %s", 
+                    command, commandOutput[0] != null ? commandOutput[0] : "Command timed out or failed"));
+                result.put("isError", true);
+            }
+            
+            result.set("content", JsonNodeFactory.instance.arrayNode().add(content));
             return result;
         } catch (Exception e) {
             plugin.getLogger().severe("Error executing command: " + e.getMessage());
-            result.put("status", "error");
-            result.put("error", "Command execution failed: " + e.getMessage());
+            ObjectNode errorContent = JsonNodeFactory.instance.objectNode();
+            errorContent.put("type", "text");
+            errorContent.put("text", "Command execution failed: " + e.getMessage());
+            result.set("content", JsonNodeFactory.instance.arrayNode().add(errorContent));
+            result.put("isError", true);
             return result;
         }
     }

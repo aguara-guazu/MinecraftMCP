@@ -23,6 +23,13 @@ public interface MCPTool {
     String getDescription();
     
     /**
+     * Get the tool input schema
+     * 
+     * @return the input schema
+     */
+    JsonNode getInputSchema();
+    
+    /**
      * Execute the tool
      * 
      * @param parameters the tool parameters

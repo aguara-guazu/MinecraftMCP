@@ -23,6 +23,13 @@ public interface MCPResource {
     String getDescription();
     
     /**
+     * Get the resource MIME type
+     * 
+     * @return the MIME type
+     */
+    String getMimeType();
+    
+    /**
      * Get the resource
      * 
      * @param uri the resource URI

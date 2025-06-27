@@ -12,6 +12,7 @@ import com.minecraftmcp.mcp.tools.ServerLogsTool;
 import com.minecraftmcp.mcp.tools.ServerStatusTool;
 import com.minecraftmcp.mcp.tools.WorldInfoTool;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.HashMap;
