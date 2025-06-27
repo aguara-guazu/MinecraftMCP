@@ -1,0 +1,237 @@
+# Minecraft MCP Security Configuration Example
+# This file demonstrates the security configuration options for the MCP plugin
+
+security:
+  authentication:
+    # Authentication Settings
+    require_2fa_for_admins: true
+    session_timeout_minutes: 30
+    max_failed_attempts: 5
+    lockout_duration_minutes: 15
+    password_requirements:
+      min_length: 10
+      require_special_chars: true
+      require_numbers: true
+      require_mixed_case: true
+    
+  authorization:
+    # Role definitions
+    roles:
+      admin:
+        permissions:
+          - "mcp.*"
+      moderator:
+        permissions:
+          - "mcp.command.*"
+          - "-mcp.command.config.*"  # Exclude config commands
+          - "-mcp.command.server.stop"  # Exclude server stop command
+      support:
+        permissions:
+          - "mcp.command.player.*"
+          - "mcp.command.chat.*"
+          - "mcp.command.info.*"
+      user:
+        permissions:
+          - "mcp.command.info.status"
+          - "mcp.command.info.help"
+      api:
+        permissions:
+          - "mcp.api.status.*"
+          - "mcp.api.metrics.*"
+    
+    # User-role assignments
+    users:
+      admin_user:
+        roles:
+          - "admin"
+      mod_user:
+        roles:
+          - "moderator"
+      support_user:
+        roles:
+          - "support"
+      api_service:
+        roles:
+          - "api"
+    
+  command_security:
+    # Command whitelist
+    whitelist_enabled: true
+    global_whitelist:
+      - "status"
+      - "info"
+      - "help"
+      - "version"
+    server_specific_whitelist:
+      survival:
+        - "backup"
+        - "restart"
+        - "whitelist"
+        - "ban"
+        - "kick"
+      creative:
+        - "gamemode"
+        - "give"
+        - "effect"
+        - "teleport"
+      lobby:
+        - "server"
+        - "msg"
+        - "broadcast"
+    
+    # Command parameter validation
+    parameter_validation:
+      teleport:
+        coordinates:
+          min_x: -30000000
+          max_x: 30000000
+          min_y: 0
+          max_y: 256
+          min_z: -30000000
+          max_z: 30000000
+      give:
+        max_amount: 64
+        blacklisted_items:
+          - "minecraft:command_block"
+          - "minecraft:structure_block"
+          - "minecraft:barrier"
+      gamemode:
+        allowed_modes:
+          - "survival"
+          - "creative"
+          - "adventure"
+          - "spectator"
+    
+  audit_logging:
+    # Logging configuration
+    enabled: true
+    log_level: INFO
+    storage_type: FILE  # Options: FILE, DATABASE, SYSLOG
+    file_options:
+      path: "./logs/mcp-audit.log"
+      max_size_mb: 10
+      max_history: 7
+      rotation_type: SIZE  # Options: SIZE, DAILY
+    database_options:
+      retention_days: 90
+      batch_size: 100
+    alert_events:
+      - "SECURITY_CONFIG_CHANGE"
+      - "FAILED_LOGIN"
+      - "PERMISSION_DENIED"
+      - "BLOCKED_COMMAND"
+    
+    # Real-time monitoring
+    real_time_alerts:
+      enabled: true
+      methods:
+        discord:
+          enabled: true
+          webhook_url: "https://discord.com/api/webhooks/your-webhook-id"
+          events:
+            - "SECURITY_CONFIG_CHANGE"
+            - "FAILED_LOGIN"
+        email:
+          enabled: false
+          smtp_server: "smtp.example.com"
+          smtp_port: 587
+          username: "alerts@example.com"
+          password: "${SMTP_PASSWORD}"  # Use environment variable
+          recipients:
+            - "admin@example.com"
+          events:
+            - "SECURITY_CONFIG_CHANGE"
+    
+  rate_limiting:
+    # Rate limiting configuration
+    enabled: true
+    categories:
+      LOGIN_ATTEMPTS:
+        capacity: 5
+        refill_rate: 5  # tokens per minute
+        abuse_threshold: 10
+        cooldown_minutes: 15
+      COMMAND_EXECUTION:
+        capacity: 30
+        refill_rate: 20
+        abuse_threshold: 50
+        cooldown_minutes: 5
+      API_REQUESTS:
+        capacity: 100
+        refill_rate: 60
+        abuse_threshold: 200
+        cooldown_minutes: 10
+      SERVER_OPERATIONS:
+        capacity: 10
+        refill_rate: 5
+        abuse_threshold: 20
+        cooldown_minutes: 30
+      
+    # Role-based rate limit multipliers
+    role_multipliers:
+      admin: 2.0
+      moderator: 1.5
+      support: 1.2
+      user: 1.0
+      api: 5.0  # Higher for API automation
+      
+  ip_security:
+    # IP security settings
+    whitelist_enabled: false
+    whitelist:
+      - "127.0.0.1"
+      - "192.168.1.0/24"
+    auto_block_suspicious: true
+    max_sessions_per_ip: 3
+    max_accounts_per_ip: 2
+    vpn_protection:
+      block_vpns: true  # Block known VPN/proxy IPs
+      exceptions:
+        - "admin_user"  # Allow admin to connect via VPN
+    
+  api_security:
+    # API-specific security settings
+    enabled: true
+    require_https: true
+    api_key_expiration_days: 90
+    cors:
+      allowed_origins:
+        - "https://admin.example.com"
+        - "https://monitoring.example.com"
+      allowed_methods:
+        - "GET"
+        - "POST"
+        - "PUT"
+      allow_credentials: false
+    jwt:
+      issuer: "mcp.example.com"
+      audience: "minecraft-mcp-clients"
+      expiration_minutes: 60
+      refresh_token_expiration_days: 30
+      secret_key_env_var: "MCP_JWT_SECRET"  # Get from environment variable
+    
+  encryption:
+    # Encryption settings
+    password_hash_algorithm: "BCRYPT"
+    password_hash_strength: 12
+    sensitive_data_encryption:
+      algorithm: "AES-256-GCM"
+      key_derivation: "PBKDF2WithHmacSHA256"
+      iterations: 65536
+    
+  security_features:
+    # Additional security features
+    session_fixation_protection: true
+    csrf_protection: true
+    secure_cookies: true
+    sandbox_commands: true  # Run risky commands in a separate thread/environment
+    enforce_secure_passwords: true
+    prevent_username_enumeration: true
+    
+  secure_defaults:
+    # Default behaviors for new users/installations
+    default_role: "user"
+    force_2fa_setup: false
+    require_email_verification: true
+    default_permissions_deny_all: true  # Deny by default, require explicit grants
+    notify_on_new_logins: true

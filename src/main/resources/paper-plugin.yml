@@ -1,0 +1,19 @@
+name: MinecraftMCP
+version: '${project.version}'
+main: com.minecraftmcp.MinecraftMCPPlugin
+api-version: '1.21'
+load: STARTUP
+authors: [MinecraftMCP]
+description: A Minecraft Paper plugin with Model Context Protocol (MCP) integration
+website: https://github.com/yourusername/minecraftmcp
+
+# Paper-specific configuration
+permissions:
+  minecraftmcp.admin:
+    description: Administrative permissions for MinecraftMCP
+    default: op
+
+# Libraries to be loaded from Maven Central
+libraries:
+  - com.fasterxml.jackson.core:jackson-databind:2.15.2
+  - org.slf4j:slf4j-api:2.0.9

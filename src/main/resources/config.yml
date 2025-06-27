@@ -1,0 +1,76 @@
+# MinecraftMCP Configuration
+
+# MCP Server settings
+mcp-server:
+  # Enable or disable the MCP server
+  enabled: true
+  # Protocol settings - stdio is required for MCP integration
+  transport: stdio
+  
+# Security settings
+security:
+  # Authentication settings
+  authentication:
+    # Enable API key authentication
+    api-key-enabled: true
+    # API key for MCP authentication (change this to a secure value)
+    api-key: "change-this-to-a-secure-value"
+    # Allow connections only from localhost (127.0.0.1)
+    localhost-only: true
+    # Session timeout in minutes (0 = never)
+    session-timeout: 30
+  
+  # Command whitelisting
+  command-whitelist:
+    # Enable command whitelisting
+    enabled: true
+    # List of allowed commands (supports wildcards with *)
+    allowed-commands:
+      - "list"
+      - "say"
+      - "tp"
+      - "kick"
+      - "ban"
+      - "pardon"
+      - "op"
+      - "deop"
+      - "gamemode"
+      - "time"
+      - "weather"
+      - "difficulty"
+  
+  # Rate limiting settings
+  rate-limiting:
+    # Enable rate limiting
+    enabled: true
+    # Maximum number of commands per minute
+    commands-per-minute: 30
+    # Maximum number of failed authentication attempts before temporary ban
+    max-auth-attempts: 5
+    # Temporary ban duration in minutes
+    temp-ban-duration: 15
+
+# Debug settings
+debug:
+  enabled: false
+  log-level: INFO
+
+# Feature toggles
+features:
+  # Enable player tracking through MCP
+  player-tracking: true
+  # Enable world manipulation through MCP
+  world-manipulation: true
+  # Enable inventory manipulation through MCP
+  inventory-manipulation: true
+
+# MCP Capabilities
+capabilities:
+  # Enable MCP tools
+  tools: true
+  # Enable MCP resources
+  resources: true
+  # Enable MCP prompts
+  prompts: true
+  # Enable logging through MCP
+  logging: true

@@ -1,0 +1,25 @@
+name: MinecraftMCP
+version: '${project.version}'
+main: com.minecraftmcp.MinecraftMCPPlugin
+api-version: '1.21'
+load: STARTUP
+authors: [MinecraftMCP]
+description: A Minecraft Paper plugin with Model Context Protocol (MCP) integration
+website: https://github.com/yourusername/minecraftmcp
+
+commands:
+  mcp:
+    description: MCP commands for Minecraft integration
+    usage: /mcp <subcommand> [args]
+    permission: minecraftmcp.commands.mcp
+    aliases: [minecraftmcp]
+
+permissions:
+  minecraftmcp.commands.mcp:
+    description: Allows use of all MCP commands
+    default: op
+  minecraftmcp.admin:
+    description: Administrative permissions for MinecraftMCP
+    default: op
+    children:
+      minecraftmcp.commands.mcp: true
