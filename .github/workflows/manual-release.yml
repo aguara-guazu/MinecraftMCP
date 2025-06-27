@@ -9,6 +9,10 @@ on:
         default: '1.0.0'
         type: string
 
+# Add explicit permissions for creating releases
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
