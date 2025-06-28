@@ -44,11 +44,27 @@ public class SecurityManager {
      * Initialize command patterns from config
      */
     private void initCommandPatterns() {
+        commandPatterns.clear();
         for (String command : plugin.getPluginConfig().getAllowedCommands()) {
             // Convert wildcards to regex patterns
             String pattern = "^" + command.replace("*", ".*") + "$";
-            commandPatterns.put(command, Pattern.compile(pattern));
+            commandPatterns.put(command, Pattern.compile(pattern, Pattern.CASE_INSENSITIVE));
         }
+        
+        if (plugin.getPluginConfig().isDebugEnabled()) {
+            plugin.getLogger().info("Initialized " + commandPatterns.size() + " command patterns");
+            for (String cmd : commandPatterns.keySet()) {
+                plugin.getLogger().info("  - Pattern: " + cmd);
+            }
+        }
+    }
+    
+    /**
+     * Reload command patterns from config (for live config updates)
+     */
+    public void reloadCommandPatterns() {
+        plugin.getLogger().info("Reloading command patterns from config...");
+        initCommandPatterns();
     }
     
     /**
@@ -160,22 +176,59 @@ public class SecurityManager {
     public boolean isCommandAllowed(String command) {
         // If command whitelisting is disabled, allow all commands
         if (!plugin.getPluginConfig().isCommandWhitelistEnabled()) {
+            if (plugin.getPluginConfig().isDebugEnabled()) {
+                plugin.getLogger().info("Command whitelist disabled - allowing: " + command);
+            }
             return true;
         }
         
         // Extract base command (remove arguments)
         String baseCommand = command.split(" ")[0];
         
+        // Check for universal wildcard - if "*" is in the allowed commands, allow everything
+        List<String> allowedCommands = plugin.getPluginConfig().getAllowedCommands();
+        if (allowedCommands.contains("*")) {
+            if (plugin.getPluginConfig().isDebugEnabled()) {
+                plugin.getLogger().info("Universal wildcard (*) found - allowing: " + baseCommand);
+            }
+            return true;
+        }
+        
         // Check against patterns
-        for (Pattern pattern : commandPatterns.values()) {
-            if (pattern.matcher(baseCommand).matches()) {
+        for (Map.Entry<String, Pattern> entry : commandPatterns.entrySet()) {
+            if (entry.getValue().matcher(baseCommand).matches()) {
+                if (plugin.getPluginConfig().isDebugEnabled()) {
+                    plugin.getLogger().info("Command '" + baseCommand + "' matched pattern '" + entry.getKey() + "'");
+                }
                 return true;
             }
         }
         
         // Not in whitelist
+        if (plugin.getPluginConfig().isDebugEnabled()) {
+            plugin.getLogger().info("Command '" + baseCommand + "' did not match any patterns. Available patterns: " + 
+                String.join(", ", commandPatterns.keySet()));
+        }
         plugin.getLogger().warning("Command not in whitelist: " + baseCommand);
         return false;
+    }
+    
+    /**
+     * Get list of allowed commands for MCP tools
+     * 
+     * @return list of allowed commands or special message if universal access
+     */
+    public List<String> getAllowedCommandsList() {
+        if (!plugin.getPluginConfig().isCommandWhitelistEnabled()) {
+            return List.of("ALL_COMMANDS_ALLOWED - Command whitelist is disabled");
+        }
+        
+        List<String> allowedCommands = plugin.getPluginConfig().getAllowedCommands();
+        if (allowedCommands.contains("*")) {
+            return List.of("ALL_COMMANDS_ALLOWED - Universal wildcard (*) is configured");
+        }
+        
+        return allowedCommands;
     }
     
     /**

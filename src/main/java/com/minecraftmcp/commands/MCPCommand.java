@@ -60,7 +60,11 @@ public class MCPCommand implements CommandExecutor, TabCompleter {
                 }
                 
                 plugin.reloadConfig();
-                sender.sendMessage(ChatColor.GREEN + "MinecraftMCP configuration reloaded!");
+                // Also reload security manager patterns
+                if (plugin.getSecurityManager() != null) {
+                    plugin.getSecurityManager().reloadCommandPatterns();
+                }
+                sender.sendMessage(ChatColor.GREEN + "MinecraftMCP configuration and command patterns reloaded!");
                 break;
                 
             case "start":

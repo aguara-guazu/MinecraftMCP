@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.minecraftmcp.MinecraftMCPPlugin;
 import com.minecraftmcp.mcp.tools.CommandTool;
+import com.minecraftmcp.mcp.tools.CommandWhitelistTool;
 import com.minecraftmcp.mcp.tools.PlayerListTool;
 import com.minecraftmcp.mcp.tools.PlayerManagementTool;
 import com.minecraftmcp.mcp.tools.ServerLogsTool;
@@ -895,6 +896,7 @@ public class MCPServer {
         tools.put("minecraft_execute_command", new CommandTool(plugin));
         tools.put("minecraft_server_status", new ServerStatusTool(plugin));
         tools.put("minecraft_server_logs", new ServerLogsTool(plugin));
+        tools.put("minecraft_get_allowed_commands", new CommandWhitelistTool(plugin));
         
         // Player tools
         tools.put("minecraft_player_list", new PlayerListTool(plugin));
